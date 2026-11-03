@@ -9,3 +9,8 @@ ios/*.xcodeproj/
 ios/build/
 xcuserdata/
 DerivedData/
+# Signing material: never commit (the repo is public)
+*.p12
+*.mobileprovision
+*.cer
+*.certSigningRequest
