@@ -1,0 +1,34 @@
+# Fly.io config. Change `app` to a unique name, then see README.md "Deploy the server".
+app = "haleys-pancreas"
+primary_region = "iad"
+
+[build]
+
+[env]
+  DATA_DIR = "/data"
+  PORT = "8080"
+  PATIENT_NAME = "Haley"
+  DEXCOM_REGION = "us"
+
+[mounts]
+  source = "hp_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Must stay running: this process does the polling.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"
+    method = "GET"
+    path = "/health/live"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

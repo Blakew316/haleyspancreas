@@ -1,0 +1,19 @@
+{
+  "name": "haleys-pancreas-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Polls Dexcom Share and pushes Live Activity updates and glucose alerts to iPhones via APNs.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
