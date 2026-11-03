@@ -12,6 +12,7 @@ struct RootView: View {
                 Tab("Log", systemImage: "square.and.pencil") { LogView() }
                 Tab("Settings", systemImage: "gearshape") { SettingsView() }
             }
+            .minimizingTabBar()
         }
     }
 }

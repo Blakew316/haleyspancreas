@@ -1,224 +1,206 @@
 import SwiftUI
 
-enum LogKind: String, Identifiable {
-    case insulin, carbs, pod
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .insulin: return "Bolus"
-        case .carbs: return "Carbs"
-        case .pod: return "Pod change"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .insulin: return "drop.fill"
-        case .carbs: return "fork.knife"
-        case .pod: return "arrow.triangle.2.circlepath"
-        }
-    }
-
-    var tint: Color {
-        switch self {
-        case .insulin: return Palette.accent
-        case .carbs: return Palette.high
-        case .pod: return Palette.inRange
-        }
-    }
-}
-
 struct LogView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var sheet: LogKind?
+    @State private var adding = false
+    @Namespace private var transition
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                AmbientBackground(color: Palette.accent)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Theme.spacing) {
-                        Text("Log").font(Theme.title(40)).padding(.top, 12)
-                        Text("Omnipod 5 doesn't share its data, so log doses and pod changes here. They feed the insulin on board estimate and the pod countdown.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        HStack(spacing: 12) {
-                            ForEach([LogKind.insulin, .carbs, .pod]) { kind in
-                                Button { sheet = kind } label: { LogTile(kind: kind) }
-                                    .buttonStyle(.plain)
-                            }
+            List {
+                if sections.isEmpty {
+                    ContentUnavailableView("Nothing logged", systemImage: "fork.knife")
+                        .listRowBackground(Color.clear)
+                }
+                ForEach(sections) { section in
+                    Section(section.title) {
+                        ForEach(section.rows) { row in
+                            LogRow(row: row)
+                                .swipeActions {
+                                    Button(role: .destructive) {
+                                        Task { try? await model.deleteEntry(kind: row.kind.rawValue, id: row.id) }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                         }
-
-                        Eyebrow(text: "Recent").padding(.top, 12)
-                        history
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
-            .sheet(item: $sheet) { kind in
-                LogEntrySheet(kind: kind)
-                    .presentationDetents([.medium])
-                    .presentationCornerRadius(32)
+            .scrollContentBackground(.hidden)
+            .background(AmbientBackground(color: Palette.high))
+            .navigationTitle("Log")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { adding = true } label: {
+                        Image(systemName: "plus")
+                            .font(.body.weight(.semibold))
+                    }
+                    .glassButton(prominent: true)
+                    .tint(Palette.accent)
+                    .matchedTransitionSource(id: "add-meal", in: transition)
+                    .accessibilityLabel("Add meal")
+                }
             }
+            .sheet(isPresented: $adding) {
+                MealSheet()
+                    .environmentObject(model)
+                    .navigationTransition(.zoom(sourceID: "add-meal", in: transition))
+            }
+            .refreshable { await model.refresh() }
         }
     }
 
-    private struct Row: Identifiable {
-        let id: String
-        let kind: LogKind
-        let time: Double
-        let text: String
+    // MARK: Rows grouped by day
+
+    private struct DaySection: Identifiable {
+        let day: Date
+        let rows: [LogRow.Model]
+        var id: Date { day }
+        var title: String {
+            if Calendar.current.isDateInToday(day) { return "Today" }
+            if Calendar.current.isDateInYesterday(day) { return "Yesterday" }
+            return day.formatted(.dateTime.weekday(.wide).month().day())
+        }
     }
 
-    private var rows: [Row] {
+    private var sections: [DaySection] {
         guard let s = model.status else { return [] }
-        let insulin = s.insulin.map { Row(id: $0.id, kind: .insulin, time: $0.time, text: "\($0.units.formatted(.number.precision(.fractionLength(0...2)))) u") }
-        let carbs = s.carbs.map { Row(id: $0.id, kind: .carbs, time: $0.time, text: "\(Int($0.grams)) g") }
-        let pods = s.podChanges.map { Row(id: $0.id, kind: .pod, time: $0.time, text: "New pod") }
-        return (insulin + carbs + pods).sorted { $0.time > $1.time }
+        let meals = s.carbs.map {
+            LogRow.Model(id: $0.id, kind: .carbs, time: $0.time,
+                         title: ($0.note?.isEmpty == false ? $0.note! : "Meal"),
+                         amount: "\(Int($0.grams.rounded())) g")
+        }
+        let doses = s.insulin.map {
+            LogRow.Model(id: $0.id, kind: .insulin, time: $0.time, title: "Bolus",
+                         amount: "\($0.units.formatted(.number.precision(.fractionLength(0...2)))) u")
+        }
+        let pods = s.podChanges.map {
+            LogRow.Model(id: $0.id, kind: .pod, time: $0.time, title: "New pod", amount: "")
+        }
+        let all = (meals + doses + pods).sorted { $0.time > $1.time }
+        let grouped = Dictionary(grouping: all) { Calendar.current.startOfDay(for: $0.date) }
+        return grouped.keys.sorted(by: >).map { DaySection(day: $0, rows: grouped[$0] ?? []) }
     }
+}
 
-    @ViewBuilder
-    private var history: some View {
-        if rows.isEmpty {
-            Text("Nothing logged yet.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .card()
-        } else {
-            VStack(spacing: 0) {
-                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                    HStack(spacing: 14) {
-                        Image(systemName: row.kind.symbol)
-                            .font(.footnote)
-                            .foregroundStyle(row.kind.tint)
-                            .frame(width: 30, height: 30)
-                            .background(Circle().fill(row.kind.tint.opacity(0.14)))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(row.text).font(.system(.body, design: .rounded).weight(.medium))
-                            Text(Date(timeIntervalSince1970: row.time).formatted(.relative(presentation: .named)))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Menu {
-                            Button("Delete", systemImage: "trash", role: .destructive) {
-                                Task { try? await model.deleteEntry(kind: row.kind.rawValue, id: row.id) }
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 32, height: 32)
-                        }
-                        .accessibilityLabel("Options for \(row.kind.title)")
-                    }
-                    .padding(.vertical, 10)
-                    if index < rows.count - 1 { Divider().opacity(0.5) }
-                }
+struct LogRow: View {
+    enum Kind: String {
+        case insulin, carbs, pod
+
+        var symbol: String {
+            switch self {
+            case .insulin: return "drop.fill"
+            case .carbs: return "fork.knife"
+            case .pod: return "arrow.triangle.2.circlepath"
             }
-            .card(padding: 14)
+        }
+
+        var tint: Color {
+            switch self {
+            case .insulin: return Palette.accent
+            case .carbs: return Palette.high
+            case .pod: return Palette.inRange
+            }
         }
     }
-}
 
-private struct LogTile: View {
-    let kind: LogKind
+    struct Model: Identifiable {
+        let id: String
+        let kind: Kind
+        let time: Double
+        let title: String
+        let amount: String
+        var date: Date { Date(timeIntervalSince1970: time) }
+    }
+
+    let row: Model
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: kind.symbol)
-                .font(.title3.weight(.light))
-                .foregroundStyle(kind.tint)
-            Text(kind.title)
-                .font(.system(.subheadline, design: .rounded).weight(.medium))
-                .foregroundStyle(.primary)
+        HStack(spacing: 14) {
+            Image(systemName: row.kind.symbol)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(row.kind.tint)
+                .frame(width: 34, height: 34)
+                .background(row.kind.tint.opacity(0.15), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.title)
+                    .font(.system(.body, design: .rounded).weight(.medium))
+                    .lineLimit(1)
+                Text(row.date.formatted(date: .omitted, time: .shortened))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(row.amount)
+                .font(.system(.body, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
         }
-        .card(padding: 16)
-        .contentShape(Rectangle())
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 }
 
-struct LogEntrySheet: View {
-    let kind: LogKind
+/// The "+" pop-up: what she ate, and the carbs.
+struct MealSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @State private var amount = ""
-    @State private var date = Date.now
+    @State private var meal = ""
+    @State private var carbs = ""
     @State private var saving = false
-    @State private var error: String?
     @State private var saved = false
-    @FocusState private var focused: Bool
+    @State private var error: String?
+    @FocusState private var focus: Field?
 
-    private var value: Double? { Double(amount.replacingOccurrences(of: ",", with: ".")) }
-    private var canSave: Bool { kind == .pod || (value ?? 0) > 0 }
+    private enum Field { case meal, carbs }
+
+    private var grams: Double? { Double(carbs.replacingOccurrences(of: ",", with: ".")) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack {
-                Text(kind.title).font(Theme.title(28))
-                Spacer()
-                Button("Cancel") { dismiss() }.foregroundStyle(.secondary)
-            }
+        EntrySheet(title: "Add Meal", height: 300, canSave: (grams ?? 0) > 0, saving: saving, onSave: save) {
+            VStack(spacing: 12) {
+                TextField("Meal", text: $meal)
+                    .font(.system(.title3, design: .rounded))
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.next)
+                    .focused($focus, equals: .meal)
+                    .onSubmit { focus = .carbs }
+                    .modifier(FieldBackground())
 
-            if kind != .pod {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    TextField("0", text: $amount)
-                        .font(Theme.numeral(64))
-                        .keyboardType(.decimalPad)
-                        .focused($focused)
-                        .fixedSize()
-                    Text(kind == .insulin ? "units" : "grams")
+                HStack(alignment: .firstTextBaseline) {
+                    TextField("0", text: $carbs)
+                        .font(Theme.numeral(34))
+                        .keyboardType(.numberPad)
+                        .focused($focus, equals: .carbs)
+                    Text("g carbs")
                         .font(.system(.title3, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
-            } else {
-                Text("Starts the 72-hour countdown shown on the Live Activity.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                .modifier(FieldBackground(height: 72))
+
+                if let error {
+                    Text(error).font(.footnote).foregroundStyle(Palette.low)
+                }
             }
-
-            DatePicker("Time", selection: $date, in: Date.now.addingTimeInterval(-7 * 86400)...Date.now)
-                .font(.system(.body, design: .rounded))
-
-            if let error {
-                Text(error).font(.footnote).foregroundStyle(Palette.low)
-            }
-
-            Spacer(minLength: 0)
-
-            Button {
-                Task { await save() }
-            } label: {
-                Text(saving ? "Saving…" : "Save")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(kind.tint)
-            .controlSize(.large)
-            .disabled(!canSave || saving)
         }
-        .padding(24)
-        .onAppear { focused = kind != .pod }
+        .onAppear { focus = .meal }
         .sensoryFeedback(.success, trigger: saved)
     }
 
-    private func save() async {
+    private func save() {
+        guard let grams, grams > 0 else { return }
         saving = true
-        defer { saving = false }
-        do {
-            switch kind {
-            case .insulin: try await model.logInsulin(units: value ?? 0, at: date, note: nil)
-            case .carbs: try await model.logCarbs(grams: value ?? 0, at: date, note: nil)
-            case .pod: try await model.logPodChange(at: date)
+        let name = meal.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task {
+            defer { saving = false }
+            do {
+                try await model.logCarbs(grams: grams, at: .now, note: name.isEmpty ? nil : name)
+                saved = true
+                dismiss()
+            } catch {
+                self.error = error.localizedDescription
             }
-            saved = true
-            dismiss()
-        } catch {
-            self.error = error.localizedDescription
         }
     }
 }
