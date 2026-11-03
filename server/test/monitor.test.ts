@@ -191,3 +191,25 @@ describe("API", () => {
     expect((await call("GET", "/health")).status).toBe(200);
   });
 });
+
+describe("extra notifiers", () => {
+  it("sends alerts to Pushover-style notifiers even with no phones registered", async () => {
+    const sent: string[] = [];
+    const source = new FakeSource();
+    source.readings = [{ mgdl: 48, trend: "singleDown", time: T0 }];
+    const monitor = new GlucoseMonitor({
+      source,
+      pusher: new FakePusher(),
+      store: new MemoryStore(),
+      patientName: "Haley",
+      now: () => T0 + 30_000,
+      log: () => {},
+      notifiers: [{ send: async (e) => void sent.push(e.kind) }],
+    });
+    await monitor.init();
+    await monitor.tick();
+    expect(sent).toContain("urgentLow");
+    await monitor.testAlert();
+    expect(sent.filter((k) => k === "low")).toHaveLength(1);
+  });
+});

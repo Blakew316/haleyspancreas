@@ -26,6 +26,12 @@ export interface MonitorOptions {
   timing?: PollTiming;
   now?: () => number;
   log?: (msg: string) => void;
+  /** Extra alert channels besides Apple push, e.g. Pushover. */
+  notifiers?: AlertNotifier[];
+}
+
+export interface AlertNotifier {
+  send(event: AlertEvent): Promise<void>;
 }
 
 /** Live Activities are ended by iOS after 8 hours; replace ours a little before that. */
@@ -244,8 +250,9 @@ export class GlucoseMonitor {
   async sendAlerts(events: AlertEvent[]): Promise<void> {
     if (events.length === 0) return;
     for (const e of events) this.log(`[alert] ${e.kind}: ${e.title}`);
-    await Promise.all(
-      this.state.devices
+    await Promise.all([
+      ...(this.opts.notifiers ?? []).flatMap((n) => events.map((e) => n.send(e).catch(() => undefined))),
+      ...this.state.devices
         .filter((d) => d.alertsEnabled && d.alertToken)
         .flatMap((device) =>
           events.map(async (event) => {
@@ -261,7 +268,7 @@ export class GlucoseMonitor {
             if (result.tokenInvalid) device.alertToken = undefined;
           }),
         ),
-    );
+    ]);
   }
 
   private async push(device: Device, req: PushRequest) {
@@ -303,6 +310,7 @@ export class GlucoseMonitor {
         body: "If you can see this, glucose alerts will reach this phone.",
         level: "critical",
       };
+      await Promise.all((this.opts.notifiers ?? []).map((n) => n.send(event).catch(() => undefined)));
       await Promise.all(
         devices
           .filter((d) => d.alertToken)

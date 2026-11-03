@@ -2,7 +2,8 @@ import fs from "node:fs";
 import { createApi } from "./api.js";
 import { ApnsClient, LoggingPusher, type Pusher } from "./apns.js";
 import { DexcomShareClient, type DexcomRegion } from "./dexcom.js";
-import { GlucoseMonitor } from "./monitor.js";
+import { GlucoseMonitor, type AlertNotifier } from "./monitor.js";
+import { PushoverNotifier } from "./pushover.js";
 import { DEFAULT_TIMING } from "./schedule.js";
 import { FileStore } from "./store.js";
 
@@ -50,8 +51,15 @@ async function main() {
       bundleId: process.env.APNS_BUNDLE_ID,
     });
   } else {
-    console.warn("APNs is not configured, so pushes are only logged. Set APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID and APNS_PRIVATE_KEY.");
+    console.warn("APNs is not configured, so Apple pushes are only logged. Set APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID and APNS_PRIVATE_KEY, or use Pushover (PUSHOVER_APP_TOKEN, PUSHOVER_USER_KEYS).");
     pusher = new LoggingPusher();
+  }
+
+  const notifiers: AlertNotifier[] = [];
+  const pushoverUsers = (process.env.PUSHOVER_USER_KEYS ?? "").split(",").map((k) => k.trim()).filter(Boolean);
+  if (process.env.PUSHOVER_APP_TOKEN && pushoverUsers.length > 0) {
+    notifiers.push(new PushoverNotifier({ appToken: process.env.PUSHOVER_APP_TOKEN, userKeys: pushoverUsers }));
+    console.log(`Pushover alerts on for ${pushoverUsers.length} user key(s).`);
   }
 
   const fastSeconds = Number(process.env.POLL_INTERVAL_SECONDS ?? 10);
@@ -60,6 +68,7 @@ async function main() {
     pusher,
     store: new FileStore(process.env.DATA_DIR ?? "./data"),
     patientName: process.env.PATIENT_NAME ?? "Haley",
+    notifiers,
     timing: { ...DEFAULT_TIMING, fastIntervalMs: Math.max(5, fastSeconds) * 1000 },
   });
   await monitor.init();

@@ -195,3 +195,38 @@ describe("APNs provider token", () => {
     expect(ok).toBe(true);
   });
 });
+
+import { pushoverParams, pushoverPriority, PushoverNotifier } from "../src/pushover.js";
+
+describe("Pushover", () => {
+  const urgent = { kind: "urgentLow" as const, title: "URGENT LOW 50 mg/dL ↓", body: "Haley is at 50 mg/dL. Treat now.", level: "critical" as const };
+  const high = { kind: "high" as const, title: "High 260 mg/dL", body: "Haley is at 260 mg/dL.", level: "timeSensitive" as const };
+
+  it("uses emergency priority for urgent lows, repeating until acknowledged", () => {
+    const p = pushoverParams(urgent, "user-key", "app-token");
+    expect(p.get("priority")).toBe("2");
+    expect(p.get("retry")).toBe("60");
+    expect(p.get("expire")).toBe("1800");
+    expect(p.get("token")).toBe("app-token");
+    expect(p.get("user")).toBe("user-key");
+    expect(p.get("message")).toContain("Treat now");
+  });
+
+  it("uses high priority for lows and normal for highs", () => {
+    expect(pushoverPriority({ ...urgent, kind: "low" })).toBe(1);
+    expect(pushoverPriority(high)).toBe(0);
+    expect(pushoverParams(high, "u", "t").get("retry")).toBeNull();
+  });
+
+  it("posts once per user key and survives a failure", async () => {
+    const calls: string[] = [];
+    const fakeFetch = (async (_url: string, init: { body: URLSearchParams }) => {
+      const user = init.body.get("user")!;
+      calls.push(user);
+      if (user === "bad") throw new Error("network down");
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    await new PushoverNotifier({ appToken: "t", userKeys: ["kyler", "bad", "haley"] }, fakeFetch, () => {}).send(urgent);
+    expect(calls.sort()).toEqual(["bad", "haley", "kyler"]);
+  });
+});

@@ -113,6 +113,26 @@ down can't send its own alerts.
 
 To run locally instead: in `server/`, `cp .env.example .env`, fill it in, then `npm ci && npm run build && node --env-file=.env dist/index.js`. Or with Docker from the main folder: `docker build -t haleys-pancreas . && docker run --env-file server/.env -p 8080:8080 -v hp_data:/data haleys-pancreas`.
 
+### Alerts without an Apple Developer account: Pushover
+
+If the app isn't signed with your own paid Apple Developer account, the server can't send Apple
+push notifications to it. It can still send every glucose alert through
+[Pushover](https://pushover.net), a notification app (about $5 once per person after a 30-day trial):
+
+1. Install **Pushover** from the App Store on each iPhone and create an account. Your **User Key**
+   is shown on pushover.net after you sign in.
+2. On pushover.net, **Create an Application/API Token** (name it "Haley's Pancreas") and copy the token.
+3. In the Pushover app: Settings → turn on **Critical Alerts**, so urgent lows sound even on
+   silent and in Focus modes.
+4. Give the server the token and the user keys (comma-separated, no spaces):
+   ```bash
+   fly secrets set PUSHOVER_APP_TOKEN='your-app-token' PUSHOVER_USER_KEYS='your-user-key,haleys-user-key'
+   ```
+
+Urgent lows use Pushover's emergency priority: they repeat every minute for up to 30 minutes until
+someone taps **Acknowledge**. Lows are high priority, and everything else is normal. "Send a test
+alert" in the app also goes to Pushover.
+
 ## 3. Build the iPhone app
 
 1. In `ios/project.yml`, set `BASE_BUNDLE_ID` to the App ID from step 1 and `DEVELOPMENT_TEAM`
