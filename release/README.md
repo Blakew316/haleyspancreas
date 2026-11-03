@@ -1,6 +1,6 @@
 # Signed build
 
-`HaleysPancreas-signed.ipa` is the Liquid Glass redesign (commit e4aed17), signed (ad hoc, production push) for **one iPhone only**
+`HaleysPancreas-signed.ipa` is the Liquid Glass redesign (commit 9f7ea1a), signed (ad hoc, production push) for **one iPhone only**
 (UDID ending `…0A32401C`), valid until 2027-10-31. It will not install on any other phone.
 
 Install from a Mac with the iPhone plugged in and unlocked:
