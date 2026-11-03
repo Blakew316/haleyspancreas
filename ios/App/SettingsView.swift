@@ -7,7 +7,9 @@ struct SettingsView: View {
     @State private var testSent = false
 
     var body: some View {
-        NavigationStack {
+        VStack(alignment: .leading, spacing: 0) {
+            PageHeader(title: "Settings")
+                .padding(.horizontal, 20)
             Form {
                 Section {
                     Toggle("Alerts", isOn: $model.alertsEnabled)
@@ -46,6 +48,7 @@ struct SettingsView: View {
                             Text("mg/dL").tag("mgdl")
                             Text("mmol/L").tag("mmol")
                         }
+                        .pickerStyle(.menu)
                         threshold("Urgent low", value: binding.urgentLow,
                                   range: span(40, min(80, binding.wrappedValue.low - 5)), unit: binding.wrappedValue.unit)
                         threshold("Low", value: binding.low,
@@ -70,8 +73,7 @@ struct SettingsView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(AmbientBackground(color: Palette.accent))
-            .navigationTitle("Settings")
+            .contentMargins(.top, 8, for: .scrollContent)
             .onAppear { draft = draft ?? model.status?.settings }
             .onChange(of: model.status?.settings) { _, new in
                 if draft == nil { draft = new }
@@ -85,6 +87,7 @@ struct SettingsView: View {
             }
             .sensoryFeedback(.success, trigger: testSent)
         }
+        .background(AmbientBackground(color: Palette.accent))
     }
 
     /// A valid range even if the bounds arrive crossed (a crossed range would crash).

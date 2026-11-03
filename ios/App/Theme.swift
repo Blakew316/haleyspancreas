@@ -3,7 +3,7 @@ import SwiftUI
 /// Visual language: quiet and uncluttered. Serif headings, light rounded numerals,
 /// Liquid Glass surfaces, and colour used only where it carries meaning.
 enum Theme {
-    static let cornerRadius: CGFloat = 28
+    static let cornerRadius: CGFloat = 26
     static let spacing: CGFloat = 14
 
     static func title(_ size: CGFloat = 34) -> Font { .system(size: size, weight: .regular, design: .serif) }
@@ -21,6 +21,8 @@ struct LiquidGlass<S: Shape>: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content.glassEffect(glass, in: shape)
+        } else if let tint {
+            content.background(tint, in: shape)
         } else {
             content
                 .background(.ultraThinMaterial, in: shape)
@@ -37,7 +39,7 @@ struct LiquidGlass<S: Shape>: ViewModifier {
     }
 }
 
-/// Lets nearby glass shapes blend and morph together on iOS 26 and later.
+/// Lets nearby glass shapes blend together on iOS 26 and later.
 struct GlassGroup<Content: View>: View {
     var spacing: CGFloat = Theme.spacing
     @ViewBuilder var content: Content
@@ -57,21 +59,11 @@ extension View {
     }
 
     /// A rounded glass card.
-    func card(padding: CGFloat = 18, interactive: Bool = false) -> some View {
+    func card(padding: CGFloat = 16, interactive: Bool = false) -> some View {
         self
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .liquidGlass(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous), interactive: interactive)
-    }
-
-    /// Glass button style on iOS 26 and later, bordered before.
-    @ViewBuilder
-    func glassButton(prominent: Bool = false) -> some View {
-        if #available(iOS 26.0, *) {
-            if prominent { self.buttonStyle(.glassProminent) } else { self.buttonStyle(.glass) }
-        } else {
-            if prominent { self.buttonStyle(.borderedProminent) } else { self.buttonStyle(.bordered) }
-        }
     }
 
     /// The tab bar shrinks while scrolling down, as in Apple's own apps (iOS 26 and later).
@@ -82,6 +74,61 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+/// The same heading on every tab: a small label above a serif title, with an optional button.
+struct PageHeader<Trailing: View>: View {
+    var eyebrow: String?
+    let title: String
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let eyebrow {
+                    Text(eyebrow.uppercased())
+                        .font(Theme.eyebrow)
+                        .tracking(1.6)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Text(title)
+                    .font(Theme.title(34))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 12)
+            trailing
+        }
+        .padding(.top, 6)
+    }
+}
+
+extension PageHeader where Trailing == EmptyView {
+    init(eyebrow: String? = nil, title: String) {
+        self.init(eyebrow: eyebrow, title: title) { EmptyView() }
+    }
+}
+
+/// A round glass button. `prominent` tints it with the accent colour.
+struct GlassCircleButton: View {
+    let systemImage: String
+    var prominent = false
+    var size: CGFloat = 44
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: size * 0.38, weight: .semibold))
+                .foregroundStyle(prominent ? Color.white : Color.primary)
+                .frame(width: size, height: size)
+                .liquidGlass(Circle(), tint: prominent ? Palette.accent : nil, interactive: true)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 
@@ -97,7 +144,7 @@ struct Eyebrow: View {
     }
 }
 
-/// A gentle wash of the current range colour behind everything, which the glass picks up.
+/// A gentle wash of colour behind everything, which the glass picks up.
 struct AmbientBackground: View {
     let color: Color
     var body: some View {
@@ -111,7 +158,7 @@ struct AmbientBackground: View {
     }
 }
 
-/// A partial-height sheet with a title, a close button and a checkmark to save.
+/// A short pop-up: ✕ on the left, the title, ✓ on the right, then the fields.
 /// On iOS 26 and later, partial-height sheets are Liquid Glass automatically.
 struct EntrySheet<Content: View>: View {
     let title: String
@@ -123,31 +170,24 @@ struct EntrySheet<Content: View>: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 20) {
+            HStack {
+                GlassCircleButton(systemImage: "xmark", label: "Cancel") { dismiss() }
+                Spacer()
+                Text(title)
+                    .font(.system(.headline, design: .rounded))
+                Spacer()
+                GlassCircleButton(systemImage: "checkmark", prominent: true, label: "Save", action: onSave)
+                    .disabled(!canSave || saving)
+                    .opacity(canSave && !saving ? 1 : 0.4)
+            }
             content
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .navigationTitle(title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button { dismiss() } label: { Image(systemName: "xmark") }
-                            .accessibilityLabel("Cancel")
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button(action: onSave) {
-                            if saving { ProgressView() } else { Image(systemName: "checkmark") }
-                        }
-                        .glassButton(prominent: true)
-                        .tint(Palette.accent)
-                        .disabled(!canSave || saving)
-                        .accessibilityLabel("Save")
-                    }
-                }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
         .presentationDetents([.height(height)])
-        .presentationDragIndicator(.visible)
+        .presentationDragIndicator(.hidden)
     }
 }
 

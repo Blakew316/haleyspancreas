@@ -15,59 +15,40 @@ struct DashboardView: View {
 
     var body: some View {
         let accent = rangeColor
-        NavigationStack {
-            ZStack {
-                AmbientBackground(color: accent)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Theme.spacing) {
-                        header
-                        hero(color: accent)
-                        if let warning = serverWarning { WarningCard(message: warning) }
-                        chartCard
-                        GlassGroup {
-                            HStack(spacing: Theme.spacing) {
-                                Button { sheet = .bolus } label: { insulinCard }
-                                    .buttonStyle(.plain)
-                                Button { sheet = .pod } label: { podCard }
-                                    .buttonStyle(.plain)
-                            }
-                            .fixedSize(horizontal: false, vertical: true)
-                        }
+        ZStack {
+            AmbientBackground(color: accent)
+            // Fixed layout, no scrolling: the chart takes whatever height is left on this iPhone.
+            VStack(alignment: .leading, spacing: Theme.spacing) {
+                PageHeader(eyebrow: Date.now.greeting, title: "Haley") {
+                    if !(status?.activeAlerts.isEmpty ?? true) || status?.snoozeUntil != nil {
+                        snoozeMenu
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
                 }
-                .refreshable { await model.refresh() }
+                hero(color: accent)
+                if let warning = serverWarning { WarningCard(message: warning) }
+                chartCard
+                GlassGroup {
+                    HStack(spacing: Theme.spacing) {
+                        Button { sheet = .bolus } label: { insulinCard }
+                            .buttonStyle(.plain)
+                        Button { sheet = .pod } label: { podCard }
+                            .buttonStyle(.plain)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .toolbar(.hidden, for: .navigationBar)
-            .sheet(item: $sheet) { kind in
-                switch kind {
-                case .bolus: BolusSheet().environmentObject(model)
-                case .pod: PodSheet().environmentObject(model)
-                }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+        }
+        .sheet(item: $sheet) { kind in
+            switch kind {
+            case .bolus: BolusSheet().environmentObject(model)
+            case .pod: PodSheet().environmentObject(model)
             }
         }
     }
 
     // MARK: Header and hero
-
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(Date.now.greeting.uppercased())
-                    .font(Theme.eyebrow)
-                    .tracking(1.6)
-                    .foregroundStyle(.secondary)
-                Text("Haley")
-                    .font(Theme.title(40))
-            }
-            Spacer()
-            if !(status?.activeAlerts.isEmpty ?? true) || status?.snoozeUntil != nil {
-                snoozeMenu
-            }
-        }
-        .padding(.top, 12)
-    }
 
     private var snoozeMenu: some View {
         Menu {
@@ -81,7 +62,7 @@ struct DashboardView: View {
             Image(systemName: status?.snoozeUntil != nil ? "moon.zzz.fill" : "moon.zzz")
                 .font(.title3)
                 .foregroundStyle(.primary)
-                .frame(width: 48, height: 48)
+                .frame(width: 44, height: 44)
                 .liquidGlass(Circle(), interactive: true)
         }
         .accessibilityLabel("Snooze alerts")
@@ -102,9 +83,9 @@ struct DashboardView: View {
     private func hero(color: Color) -> some View {
         if let latest = status?.latest, let settings = status?.settings {
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .center, spacing: 18) {
+                HStack(alignment: .center, spacing: 16) {
                     Text(Glucose.format(latest.mgdl, unit: settings.unit))
-                        .font(Theme.numeral(112))
+                        .font(Theme.numeral(92))
                         .foregroundStyle(color)
                         .contentTransition(.numericText(value: latest.mgdl))
                         .minimumScaleFactor(0.6)
@@ -126,15 +107,13 @@ struct DashboardView: View {
                 .font(.system(.subheadline, design: .rounded))
                 .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 8)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(Glucose.format(latest.mgdl, unit: settings.unit)) \(Glucose.unitLabel(settings.unit)), \(Glucose.trendDescription(latest.trend))")
             .animation(.smooth, value: latest.mgdl)
         } else {
             Text("—")
-                .font(Theme.numeral(112))
+                .font(Theme.numeral(92))
                 .foregroundStyle(.tertiary)
-                .padding(.vertical, 8)
         }
     }
 
@@ -152,7 +131,7 @@ struct DashboardView: View {
     // MARK: Chart
 
     private var chartCard: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 14) {
             Picker("Range", selection: $hours) {
                 Text("3h").tag(3)
                 Text("6h").tag(6)
@@ -166,19 +145,20 @@ struct DashboardView: View {
                 settings: status?.settings,
                 hours: hours
             )
-            .frame(height: 220)
+            .frame(minHeight: 110, maxHeight: .infinity)
         }
+        .frame(maxHeight: .infinity)
         .card()
     }
 
     // MARK: Small cards (tap to log)
 
     private var insulinCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             CardHeading(title: "Insulin")
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(String(format: "%.1f", status?.iob ?? 0))
-                    .font(Theme.numeral(38))
+                    .font(Theme.numeral(32))
                 Text("u").font(.system(.body, design: .rounded)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
@@ -189,7 +169,7 @@ struct DashboardView: View {
     }
 
     private var podCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             CardHeading(title: "Pod")
             if let pod = status?.pod {
                 TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -197,14 +177,14 @@ struct DashboardView: View {
                     let left = max(0, pod.expiresAt - context.date.timeIntervalSince1970)
                     HStack(spacing: 12) {
                         PodRing(progress: total > 0 ? left / total : 0)
-                            .frame(width: 30, height: 30)
+                            .frame(width: 26, height: 26)
                         Text(left > 0 ? "\(Int(left / 3600))h" : "Expired")
-                            .font(Theme.numeral(left > 0 ? 38 : 26))
+                            .font(Theme.numeral(left > 0 ? 32 : 24))
                             .foregroundStyle(left > 0 ? Color.primary : Palette.low)
                     }
                 }
             } else {
-                Text("—").font(Theme.numeral(38)).foregroundStyle(.tertiary)
+                Text("—").font(Theme.numeral(32)).foregroundStyle(.tertiary)
             }
             Spacer(minLength: 0)
         }
@@ -238,9 +218,9 @@ struct TrendBadge: View {
     let color: Color
     var body: some View {
         Text(Glucose.arrow(trend))
-            .font(.system(size: 32, weight: .light, design: .rounded))
+            .font(.system(size: 28, weight: .light, design: .rounded))
             .foregroundStyle(color)
-            .frame(width: 64, height: 64)
+            .frame(width: 56, height: 56)
             .liquidGlass(Circle(), tint: color.opacity(0.25))
     }
 }
@@ -404,7 +384,7 @@ struct GlucoseChart: View {
             }
         }
         .chartXAxis {
-            AxisMarks(values: .stride(by: .hour, count: hours <= 6 ? 1 : hours <= 12 ? 3 : 6)) { _ in
+            AxisMarks(preset: .aligned, values: .stride(by: .hour, count: hours <= 3 ? 1 : hours <= 6 ? 2 : hours <= 12 ? 3 : 6)) { _ in
                 AxisValueLabel(format: .dateTime.hour())
             }
         }

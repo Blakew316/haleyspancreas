@@ -3,51 +3,67 @@ import SwiftUI
 struct LogView: View {
     @EnvironmentObject private var model: AppModel
     @State private var adding = false
-    @Namespace private var transition
 
     var body: some View {
-        NavigationStack {
-            List {
-                if sections.isEmpty {
-                    ContentUnavailableView("Nothing logged", systemImage: "fork.knife")
-                        .listRowBackground(Color.clear)
+        ZStack {
+            AmbientBackground(color: Palette.high)
+            VStack(alignment: .leading, spacing: Theme.spacing) {
+                PageHeader(eyebrow: Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()), title: "Log") {
+                    GlassCircleButton(systemImage: "plus", prominent: true, size: 48, label: "Add meal") {
+                        adding = true
+                    }
                 }
-                ForEach(sections) { section in
-                    Section(section.title) {
-                        ForEach(section.rows) { row in
-                            LogRow(row: row)
-                                .swipeActions {
-                                    Button(role: .destructive) {
-                                        Task { try? await model.deleteEntry(kind: row.kind.rawValue, id: row.id) }
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
+                .padding(.horizontal, 20)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        if sections.isEmpty {
+                            HStack(spacing: 12) {
+                                Image(systemName: "fork.knife")
+                                    .foregroundStyle(Palette.high)
+                                Text("No meals yet")
+                                    .font(.system(.body, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .card()
+                        }
+                        ForEach(sections) { section in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Eyebrow(text: section.title)
+                                    .padding(.leading, 6)
+                                VStack(spacing: 0) {
+                                    ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
+                                        LogRow(row: row)
+                                            .padding(.vertical, 12)
+                                            .contentShape(Rectangle())
+                                            .contextMenu {
+                                                Button(role: .destructive) {
+                                                    Task { try? await model.deleteEntry(kind: row.kind.rawValue, id: row.id) }
+                                                } label: {
+                                                    Label("Delete", systemImage: "trash")
+                                                }
+                                            }
+                                        if index < section.rows.count - 1 {
+                                            Divider().opacity(0.4).padding(.leading, 48)
+                                        }
                                     }
                                 }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 4)
+                                .liquidGlass(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
+                            }
                         }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 4)
+                    .padding(.bottom, 24)
                 }
+                .scrollIndicators(.hidden)
+                .refreshable { await model.refresh() }
             }
-            .scrollContentBackground(.hidden)
-            .background(AmbientBackground(color: Palette.high))
-            .navigationTitle("Log")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { adding = true } label: {
-                        Image(systemName: "plus")
-                            .font(.body.weight(.semibold))
-                    }
-                    .glassButton(prominent: true)
-                    .tint(Palette.accent)
-                    .matchedTransitionSource(id: "add-meal", in: transition)
-                    .accessibilityLabel("Add meal")
-                }
-            }
-            .sheet(isPresented: $adding) {
-                MealSheet()
-                    .environmentObject(model)
-                    .navigationTransition(.zoom(sourceID: "add-meal", in: transition))
-            }
-            .refreshable { await model.refresh() }
+        }
+        .sheet(isPresented: $adding) {
+            MealSheet().environmentObject(model)
         }
     }
 
@@ -137,7 +153,6 @@ struct LogRow: View {
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
     }
 }
