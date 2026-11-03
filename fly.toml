@@ -1,4 +1,5 @@
-# Fly.io config. Change `app` to a unique name, then see README.md "Deploy the server".
+# Fly.io config. Run fly commands from this folder (the repository root).
+# Change `app` to a unique name first; see README.md "Deploy the server".
 app = "haleys-pancreas"
 primary_region = "iad"
 

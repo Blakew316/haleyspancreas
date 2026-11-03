@@ -27,6 +27,32 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+  docker:
+    name: Server Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image (same Dockerfile Fly.io uses)
+        run: docker build -t haleys-pancreas .
+      - name: Start it and check it responds and can save data
+        run: |
+          SECRET=$(openssl rand -hex 32)
+          docker volume create hp_data
+          # Fake Dexcom login: the server should stay up, report the sign-in error, and keep serving the app.
+          docker run -d --name hp -p 8080:8080 -v hp_data:/data \
+            -e APP_SECRET="$SECRET" -e DEXCOM_USERNAME=ci-check -e DEXCOM_PASSWORD=ci-check \
+            haleys-pancreas
+          for i in $(seq 1 30); do curl -fsS localhost:8080/health/live && break; sleep 1; done
+          echo; curl -fsS -H "Authorization: Bearer $SECRET" localhost:8080/status | head -c 300; echo
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/status)" = 401
+          # The volume is owned by root, like a Fly volume: the server must be able to write to it.
+          for i in $(seq 1 15); do docker exec hp test -f /data/state.json && break; sleep 1; done
+          docker exec hp ls -la /data/state.json
+      - name: Server logs
+        if: always()
+        run: docker logs hp || true
+
   ios:
     name: iOS app (unsigned IPA)
     runs-on: macos-latest

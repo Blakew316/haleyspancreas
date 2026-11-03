@@ -65,17 +65,22 @@ You can change the thresholds in the app's Settings.
 
 ## 2. Deploy the server
 
+Run these from the **main project folder** (the one with `Dockerfile` and `fly.toml` in it, not
+`server/`). Fly.io builds the server from the `Dockerfile` on its own computers, so you don't need
+Docker installed.
+
+Pick a unique name for the server (replace `yourname`):
+
 ```bash
-cd server
-npm ci && npm test
+APP=haleys-pancreas-yourname
 ```
 
 ```bash
-fly launch --no-deploy --copy-config   # change `app` in fly.toml to a unique name when asked
+fly apps create $APP && sed -i '' "s/^app = .*/app = \"$APP\"/" fly.toml
 ```
 
 ```bash
-fly volumes create hp_data --size 1
+fly volumes create hp_data --size 1 --region iad --yes
 ```
 
 Make the app secret first and keep it (you'll type it into the app):
@@ -96,15 +101,17 @@ fly secrets set \
 ```
 
 ```bash
-fly deploy
+fly deploy --ha=false
 ```
+
+`--ha=false` keeps it to exactly one machine, so alerts aren't sent twice.
 
 Check it's running: `https://<your-app>.fly.dev/health` returns `{"ok":true}` once Dexcom
 Share has been reached. Point a free uptime monitor (e.g. UptimeRobot or healthchecks.io) at
 `/health`. Then you'll hear about it if the server itself goes down, because a server that is
 down can't send its own alerts.
 
-To run locally instead: `cp .env.example .env`, fill it in, then `npm run build && node --env-file=.env dist/index.js`.
+To run locally instead: in `server/`, `cp .env.example .env`, fill it in, then `npm ci && npm run build && node --env-file=.env dist/index.js`. Or with Docker from the main folder: `docker build -t haleys-pancreas . && docker run --env-file server/.env -p 8080:8080 -v hp_data:/data haleys-pancreas`.
 
 ## 3. Build the iPhone app
 
