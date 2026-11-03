@@ -120,9 +120,31 @@ To run locally instead: `cp .env.example .env`, fill it in, then `npm run build 
    Allow notifications, then turn on **Live Activity**.
 5. Repeat on each phone that should get alerts (Haley's and yours).
 
-Builds run straight from Xcode use Apple's *sandbox* push servers, and the app tells the server
-which servers to use. A TestFlight build uses production. TestFlight is the easiest way to keep
-the app installed: apps installed from Xcode expire after a year on a paid account.
+The app reads which Apple push servers to use (sandbox or production) from its signing profile
+and tells the server, so this works the same for Xcode, sideloaded and TestFlight installs.
+TestFlight is the easiest way to keep the app installed long term.
+
+### Or: install the prebuilt IPA
+
+Every push to GitHub builds an **unsigned** `HaleysPancreas-unsigned.ipa` on GitHub's Mac
+servers (Actions → Build → Artifacts). An iPhone only runs apps signed for it, so the IPA has to
+be signed during install by a sideloading tool such as [Sideloadly](https://sideloadly.io)
+(Mac or Windows):
+
+1. Install Sideloadly on the MacBook, plug in the iPhone with a cable, and unlock it.
+2. Drag `HaleysPancreas-unsigned.ipa` into Sideloadly, enter your Apple ID, and press **Start**.
+3. On the iPhone, turn on Settings → Privacy & Security → **Developer Mode** (it restarts). Then
+   go to Settings → General → VPN & Device Management and trust your Apple ID.
+
+What works depends on the Apple ID you sign with:
+
+| Signed with | Expires | Push alerts and background Live Activity updates |
+|---|---|---|
+| Free Apple ID | after 7 days; re-sign weekly | **No.** Apple doesn't allow push notifications with free signing. The Live Activity only updates while the app is open. |
+| Paid Apple Developer account | after 1 year | Only if the provisioning profile includes Push Notifications. Building from Xcode (above) or TestFlight is the reliable way to get them. |
+
+Because alerts are the point of this app, use a paid account and install from Xcode or
+TestFlight for everyday use. The IPA is handy for a quick look at the app.
 
 ## 4. Critical alerts (recommended)
 
