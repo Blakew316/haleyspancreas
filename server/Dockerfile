@@ -12,5 +12,5 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 EXPOSE 8080
-USER node
+# Runs as root because Fly volumes mount owned by root; the server must write /data/state.json.
 CMD ["node", "dist/index.js"]
