@@ -36,14 +36,24 @@ final class AppModel: ObservableObject {
         static let pushToStartToken = "pushToStartToken"
     }
 
-    /// Debug builds from Xcode use Apple's sandbox push servers; TestFlight/App Store builds use production.
-    static var apnsEnvironment: String {
-        #if DEBUG
-        return "sandbox"
-        #else
-        return "production"
-        #endif
-    }
+    /// Which Apple push servers this install's tokens belong to. Read from the signing profile,
+    /// because a sideloaded Release build still uses a development profile (sandbox).
+    /// App Store and TestFlight installs have no embedded profile and use production.
+    static let apnsEnvironment: String = {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url),
+              let text = String(data: data, encoding: .isoLatin1),
+              let start = text.range(of: "<?xml"),
+              let end = text.range(of: "</plist>", range: start.upperBound..<text.endIndex),
+              let plistData = String(text[start.lowerBound..<end.upperBound]).data(using: .isoLatin1),
+              let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any],
+              let env = entitlements["aps-environment"] as? String
+        else {
+            return "production"
+        }
+        return env == "development" ? "sandbox" : "production"
+    }()
 
     let deviceId: String
 
