@@ -230,3 +230,24 @@ describe("Pushover", () => {
     expect(calls.sort()).toEqual(["bad", "haley", "kyler"]);
   });
 });
+
+describe("Pushover with Apple push also on", () => {
+  const event = (kind: "urgentLow" | "low" | "high", test = false) => ({
+    kind, title: "t", body: "b", level: "critical" as const, ...(test ? { test } : {}),
+  });
+
+  it("only sends urgent lows and tests when urgentOnly is set", async () => {
+    const sent: string[] = [];
+    const fakeFetch = (async (_url: string, init: { body: URLSearchParams }) => {
+      sent.push(init.body.get("title") === "t" ? "sent" : "?");
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const n = new PushoverNotifier({ appToken: "t", userKeys: ["u"], urgentOnly: true }, fakeFetch, () => {});
+    await n.send(event("high"));
+    await n.send(event("low"));
+    expect(sent).toHaveLength(0);
+    await n.send(event("urgentLow"));
+    await n.send(event("low", true));
+    expect(sent).toHaveLength(2);
+  });
+});

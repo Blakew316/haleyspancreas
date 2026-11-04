@@ -173,6 +173,22 @@ What works depends on the Apple ID you sign with:
 Because alerts are the point of this app, use a paid account and install from Xcode or
 TestFlight for everyday use. The IPA is handy for a quick look at the app.
 
+### Turning on Apple push (with your own developer account)
+
+Once the app is built and installed from Xcode with your own team (above), give the server your
+Apple push key so it can update the Live Activity and send alerts while the app is closed:
+
+1. developer.apple.com → Certificates, IDs & Profiles → **Keys → +** → tick **Apple Push
+   Notifications service (APNs)** → Register → **Download** the `AuthKey_XXXXXXXXXX.p8` file.
+2. From the main project folder (replace the Key ID, Team ID and file path):
+   ```bash
+   fly secrets set APNS_KEY_ID='XXXXXXXXXX' APNS_TEAM_ID='YOURTEAMID' APNS_BUNDLE_ID='com.kyler.haleyspancreas' APNS_PRIVATE_KEY="$(cat ~/Downloads/AuthKey_XXXXXXXXXX.p8)"
+   ```
+   `APNS_BUNDLE_ID` must match `BASE_BUNDLE_ID` in `ios/project.yml`.
+
+If Pushover is also set up, it then only sends urgent lows (it repeats until acknowledged and can
+sound through silent mode); Apple push handles everything else, so alerts don't arrive twice.
+
 ## 4. Critical alerts (recommended)
 
 Critical alerts play even when the phone is on silent or in a Focus mode. Apple grants them to

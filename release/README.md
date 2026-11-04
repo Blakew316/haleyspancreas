@@ -1,3 +1,6 @@
+> **Old build.** This IPA was signed through KravaSign before the developer account existed.
+> Build from Xcode with your own team instead (README section 3); it supports Apple push.
+
 # Signed build
 
 `HaleysPancreas-signed.ipa` is the Liquid Glass redesign (commit 9f7ea1a), signed (ad hoc, production push) for **one iPhone only**

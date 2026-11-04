@@ -14,6 +14,11 @@ export interface PushoverConfig {
   appToken: string;
   /** User or group keys to notify (shown on the pushover.net dashboard after signing in). */
   userKeys: string[];
+  /**
+   * Only send urgent lows (and tests). Used when Apple push works too, so other alerts
+   * don't arrive twice while Pushover stays the loudest backup for the alerts that matter most.
+   */
+  urgentOnly?: boolean;
 }
 
 const EMERGENCY: ReadonlySet<AlertKind> = new Set(["urgentLow", "urgentLowSoon"]);
@@ -55,6 +60,7 @@ export class PushoverNotifier {
   }
 
   async send(event: AlertEvent): Promise<void> {
+    if (this.config.urgentOnly && !event.test && !EMERGENCY.has(event.kind)) return;
     await Promise.all(
       this.config.userKeys.map(async (user) => {
         try {

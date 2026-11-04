@@ -309,6 +309,7 @@ export class GlucoseMonitor {
         title: "Test alert",
         body: "If you can see this, glucose alerts will reach this phone.",
         level: "critical",
+        test: true,
       };
       await Promise.all((this.opts.notifiers ?? []).map((n) => n.send(event).catch(() => undefined)));
       await Promise.all(

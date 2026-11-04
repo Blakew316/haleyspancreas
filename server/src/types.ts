@@ -97,6 +97,8 @@ export interface AlertEvent {
   body: string;
   /** critical = bypasses silent/Focus (needs Apple's critical-alert entitlement); otherwise time-sensitive. */
   level: "critical" | "timeSensitive";
+  /** A test from the app's Settings: goes to every channel. */
+  test?: boolean;
 }
 
 export interface AlertState {

@@ -58,8 +58,11 @@ async function main() {
   const notifiers: AlertNotifier[] = [];
   const pushoverUsers = (process.env.PUSHOVER_USER_KEYS ?? "").split(",").map((k) => k.trim()).filter(Boolean);
   if (process.env.PUSHOVER_APP_TOKEN && pushoverUsers.length > 0) {
-    notifiers.push(new PushoverNotifier({ appToken: process.env.PUSHOVER_APP_TOKEN, userKeys: pushoverUsers }));
-    console.log(`Pushover alerts on for ${pushoverUsers.length} user key(s).`);
+    // With Apple push working, Pushover only adds value for urgent lows (it repeats until
+    // acknowledged and can sound through silent mode), so other alerts don't arrive twice.
+    const urgentOnly = pusher instanceof ApnsClient;
+    notifiers.push(new PushoverNotifier({ appToken: process.env.PUSHOVER_APP_TOKEN, userKeys: pushoverUsers, urgentOnly }));
+    console.log(`Pushover alerts on for ${pushoverUsers.length} user key(s)${urgentOnly ? ", urgent lows only (Apple push handles the rest)" : ""}.`);
   }
 
   const fastSeconds = Number(process.env.POLL_INTERVAL_SECONDS ?? 10);
